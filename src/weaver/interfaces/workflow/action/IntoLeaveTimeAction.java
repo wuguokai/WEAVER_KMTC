@@ -1,6 +1,7 @@
 package weaver.interfaces.workflow.action;
 
 import java.math.BigDecimal;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
@@ -45,10 +46,6 @@ public class IntoLeaveTimeAction extends BaseBean implements Action {
 			double pych = 0; // 去年剩余调休
 			double pmsh = 0; // 剩余年休
 			double pmch = 0; // 剩余调休
-			// 错误的 double pych = 0; //去年剩余年休
-			// double pysh = 0; //去年剩余调休
-			// double pmch = 0; //剩余年休
-			// double pmsh = 0; //剩余调休
 			double sjlasthours = 0; // 剩余事假
 			String JBIDs = null;
 			String billno = "";
@@ -441,14 +438,42 @@ public class IntoLeaveTimeAction extends BaseBean implements Action {
 
 										RecordSetDataSource rsD = new RecordSetDataSource(
 												"HR");
-										String sqlD = "select dutydate from hrqw_dutydata "
-												+ " where pemn='"
-												+ pemn
-												+ "' and dutydate<'"
-												+ date
-												+ "' and JBID='D' and defitem2='N'"
-												+ " and (shiftid='7' or shiftid='8') and overtimehours=0 and jbhours=0"
-												+ " order by dutydate desc";
+                                        String sqlD = "";
+                                        String previousMonth26day = getDatePreviousMonth26Day(date);//上个月26号
+                                        String thisMonth26Day = getDateThisMonth26Day(date);//本月26号
+                                        //1、日期在25号之前，找到上个月26号
+                                        if ((date.split("-")[2]).compareTo("26") < 0){
+                                            sqlD = "select dutydate from hrqw_dutydata "
+                                                    + " where pemn='"
+                                                    + pemn
+                                                    + "' and dutydate<'"
+                                                    + date
+                                                    +" ' and dutydate>='"
+                                                    + previousMonth26day
+                                                    + "' and JBID='D' and defitem2='N'"
+                                                    + " and (shiftid='7' or shiftid='8') and overtimehours=0 and jbhours=0"
+                                                    + " order by dutydate desc";
+                                        }else {
+                                            //2、日期在26号及之后，找到本月26号
+                                            sqlD = "select dutydate from hrqw_dutydata "
+                                                    + " where pemn='"
+                                                    + pemn
+                                                    + "' and dutydate<'"
+                                                    + date
+                                                    +"' and dutydate>='"
+                                                    + thisMonth26Day
+                                                    + "' and JBID='D' and defitem2='N'"
+                                                    + " and (shiftid='7' or shiftid='8') and overtimehours=0 and jbhours=0"
+                                                    + " order by dutydate desc";
+                                        }
+//										sqlD = "select dutydate from hrqw_dutydata "
+//												+ " where pemn='"
+//												+ pemn
+//												+ "' and dutydate<'"
+//												+ date
+//												+ "' and JBID='D' and defitem2='N'"
+//												+ " and (shiftid='7' or shiftid='8') and overtimehours=0 and jbhours=0"
+//												+ " order by dutydate desc";
 										rsD.executeSql(sqlD);
 										basebean.writeLog("===================向前找D的sqlD: "
 												+ sqlD);
@@ -482,14 +507,40 @@ public class IntoLeaveTimeAction extends BaseBean implements Action {
 											}
 
 										} else {
-											sqlD = "select dutydate from hrqw_dutydata "
-													+ " where pemn='"
-													+ pemn
-													+ "' and dutydate>'"
-													+ date
-													+ "' and JBID='D' and defitem2='N'"
-													+ " and (shiftid='7' or shiftid='8') and overtimehours=0 and jbhours=0"
-													+ " order by dutydate";
+                                            String thisMonth25Day = getDateThisMonth25Day(date);
+                                            String nextMonth25Day = getDateNextMonth25Day(date);
+										    //1、日期在25号及之前，找到本月25号
+                                            if ((date.split("-")[2]).compareTo("26") < 0){
+                                                sqlD = "select dutydate from hrqw_dutydata "
+                                                        + " where pemn='"
+                                                        + pemn
+                                                        + "' and dutydate>'"
+                                                        + date
+                                                        + "' and dutydate<='"
+                                                        + thisMonth25Day
+                                                        + "' and JBID='D' and defitem2='N'"
+                                                        + " and (shiftid='7' or shiftid='8') and overtimehours=0 and jbhours=0"
+                                                        + " order by dutydate";
+                                            }else {
+                                                sqlD = "select dutydate from hrqw_dutydata "
+                                                        + " where pemn='"
+                                                        + pemn
+                                                        + "' and dutydate>'"
+                                                        + date
+                                                        + "' and dutydate<='"
+                                                        + nextMonth25Day
+                                                        + "' and JBID='D' and defitem2='N'"
+                                                        + " and (shiftid='7' or shiftid='8') and overtimehours=0 and jbhours=0"
+                                                        + " order by dutydate";
+                                            }
+//                                                sqlD = "select dutydate from hrqw_dutydata "
+//													+ " where pemn='"
+//													+ pemn
+//													+ "' and dutydate>'"
+//													+ date
+//													+ "' and JBID='D' and defitem2='N'"
+//													+ " and (shiftid='7' or shiftid='8') and overtimehours=0 and jbhours=0"
+//													+ " order by dutydate";
 											rsD.executeSql(sqlD);
 											basebean.writeLog("===================向后找D的sqlD: "
 													+ sqlD);
@@ -666,57 +717,6 @@ public class IntoLeaveTimeAction extends BaseBean implements Action {
 								basebean.writeLog("=========startDate : endDate : "
 										+ startDate + " : " + endDate);
 
-								/*
-								 * if(hourl>0){//昨天的时长大于0 double dutyHourl =
-								 * 0;//一天的有效时长（包括请假和打卡的） String sql2l =
-								 * "select ondutydate,offdutydate,shiftid,JBID,lateflag,leaveflag "
-								 * + " from hrqw_dutydata where pemn='"+pemn+
-								 * "' and dutydate = '"+addDate(date, -1)+"'";
-								 * rs2.executeSql(sql2l); basebean.writeLog(
-								 * "===================8班别查询昨天的打卡时间sql2l："+
-								 * sql2l); String ondutydatel = null; String
-								 * offdutydatel = null; String lateflagl = null;
-								 * String leaveflagl = null; while(rs2.next()){
-								 * ondutydatel = rs2.getString(1);
-								 * if(!"".equals(ondutydatel)){ ondutydatel =
-								 * ondutydatel.substring(0,
-								 * 2)+":"+ondutydatel.substring(2, 4); }
-								 * offdutydatel = rs2.getString(2);
-								 * if(!"".equals(offdutydatel)){ offdutydatel =
-								 * offdutydatel.substring(0,
-								 * 2)+":"+offdutydatel.substring(2, 4); }
-								 * lateflagl = rs2.getString(5); leaveflagl =
-								 * rs2.getString(6); } //需要查询出昨天的有效上班时间
-								 * if(!"".equals(ondutydatel) &&
-								 * datetimeDiff(timeTran(startTime, date),
-								 * timeTran(ondutydatel, date))<0 ){ time1 =
-								 * timeTran(ondutydatel, date); }else{ time1 =
-								 * timeTran(startTime, date); }
-								 * if(!"".equals(offdutydatel) &&
-								 * datetimeDiff(timeTran(endTime, date),
-								 * timeTran(offdutydatel, date))>0){ time2 =
-								 * timeTran(offdutydatel, date); }else{ time2 =
-								 * timeTran(endTime, date); } dutyHourl
-								 * =datetimeDiff(time1, time2);
-								 * if(dutyHourl>=8){//需要去除标识 sql =
-								 * "update hrqw_dutydata set defitem5 ='"
-								 * +billno+
-								 * "',lateflag='',leaveflag='' where pemn='"
-								 * +pemn+"' and dutydate='"+addDate(date,
-								 * -1)+"' "; rs.executeSql(sql);
-								 * basebean.writeLog
-								 * ("===================8班别昨天去除标识sql: "+ sql);
-								 * }else{//需要加标识 sql =
-								 * "update hrqw_dutydata set defitem5 ='"
-								 * +billno+
-								 * "',lateflag='#',leaveflag='#' where pemn='"
-								 * +pemn+"' and dutydate='"+addDate(date,
-								 * -1)+"' "; rs.executeSql(sql);
-								 * basebean.writeLog
-								 * ("===================8班别昨天添加标识sql: "+ sql); }
-								 * }
-								 */
-
 								if (hours > 0) {
 									// 调用getDutyHours方法计算在职时长
 									dutyHours = getDutyHours(date,
@@ -748,172 +748,6 @@ public class IntoLeaveTimeAction extends BaseBean implements Action {
 									}
 								}
 
-								/*
-								 * if(hourl>0){ //昨天的时长大于0 if(hourl<4){
-								 * if(JBID.equals("Z")){ sql =
-								 * "update hrqw_dutydata set defitem5 ='"
-								 * +billno+
-								 * "',JBID=null, shiftid='5',overtimehours=overtimehours+"
-								 * +
-								 * (4-hourl)+",overtimeflag='X' where pemn='"+pemn
-								 * +"' and dutydate='"+addDate(date,-1)+"' ";
-								 * }else{ sql =
-								 * "update hrqw_dutydata set defitem5 ='"
-								 * +billno+
-								 * "',shiftid='5',overtimehours=overtimehours+"
-								 * +(
-								 * 4-hourl)+",overtimeflag='X' where pemn='"+pemn
-								 * +"' and dutydate='"+addDate(date,-1)+"' "; }
-								 * rs.executeSql(sql); basebean.writeLog(
-								 * "===================8班别免加班sql: "+ sql); }else
-								 * if(hourl == 4){ if(JBID.equals("Z")){ sql =
-								 * "update hrqw_dutydata set defitem5 ='"
-								 * +billno+
-								 * "',JBID=null, shiftid='5' where pemn='"
-								 * +pemn+"' and dutydate='"
-								 * +addDate(date,-1)+"' "; }else{ sql =
-								 * "update hrqw_dutydata set defitem5 ='"
-								 * +billno+"',shiftid='5' where pemn='"+pemn+
-								 * "' and dutydate='"+addDate(date,-1)+"' "; }
-								 * rs.executeSql(sql); basebean.writeLog(
-								 * "===================8班别免加班sql: "+ sql);
-								 * }else{ if(pysh+4-hourl>=0){ //去年年假充足 sql =
-								 * "update hrqw_dutydata set defitem5 ='"
-								 * +billno+
-								 * "',shiftid='5',JBID='S',jbhours="+(hourl
-								 * -4)+" where pemn='"
-								 * +pemn+"' and dutydate='"+addDate
-								 * (date,-1)+"' "; rs.executeSql(sql);
-								 * basebean.writeLog
-								 * ("===================8班别免加班去年年休sql: "+ sql);
-								 * }else if(pych+4-hourl>=0){ //去年调休充足 sql =
-								 * "update hrqw_dutydata set defitem5 ='"
-								 * +billno+
-								 * "',shiftid='5',JBID='C',jbhours="+(hourl
-								 * -4)+" where pemn='"
-								 * +pemn+"' and dutydate='"+addDate
-								 * (date,-1)+"' "; rs.executeSql(sql);
-								 * basebean.writeLog
-								 * ("===================8班别免加班去年调休sql: "+ sql);
-								 * }else if(pmsh+4-hourl>=0){ //年休充足 sql =
-								 * "update hrqw_dutydata set defitem5 ='"
-								 * +billno+
-								 * "',shiftid='5',JBID='S',jbhours="+(hourl
-								 * -4)+" where pemn='"
-								 * +pemn+"' and dutydate='"+addDate
-								 * (date,-1)+"' "; rs.executeSql(sql);
-								 * basebean.writeLog
-								 * ("===================8班别免加班年休sql: "+ sql);
-								 * }else if(pmch+4-hourl>=0){ //调休充足 sql =
-								 * "update hrqw_dutydata set defitem5 ='"
-								 * +billno+
-								 * "',shiftid='5',JBID='C',jbhours="+(hourl
-								 * -4)+" where pemn='"
-								 * +pemn+"' and dutydate='"+addDate
-								 * (date,-1)+"' "; rs.executeSql(sql);
-								 * basebean.writeLog
-								 * ("===================8班别免加班调休sql: "+ sql);
-								 * }else{ //去D处理
-								 * 
-								 * RecordSetDataSource rsD = new
-								 * RecordSetDataSource("HR"); String sqlD =
-								 * "select dutydate from hrqw_dutydata " +
-								 * " where pemn='"+pemn+"' and dutydate<'"+date+
-								 * "' and JBID='D' and defitem2='N'" +
-								 * " and (shiftid='7' or shiftid='8') and overtimehours=0 and jbhours=0"
-								 * + " order by dutydate desc";
-								 * rsD.executeSql(sqlD); basebean.writeLog(
-								 * "===================向前找D的sqlD: "+ sqlD);
-								 * String dutydateD = null;
-								 * if(rsD.getCounts()>0){//向前找D的结果集有值
-								 * basebean.writeLog
-								 * ("===================向前找D的结果集有值"); //
-								 * rsD.previous();//移动到上一条记录，重头开始遍历
-								 * while(rsD.next()){ dutydateD =
-								 * rsD.getString(1); String sql5 =
-								 * "select holidaydate from hrqw_fixholiday " +
-								 * " where substr(holidaydate,0,4)>=to_char(add_months(trunc(sysdate),-12),'yyyy')"
-								 * ; rs5.executeSql(sql5); basebean.writeLog(
-								 * "===================查询法定节假日的日期: "+ sql5);
-								 * while(rs5.next()){
-								 * if(dutydateD.equals(rs5.getString
-								 * (1))){//如果D的日期是法定节假日，则置为空
-								 * basebean.writeLog("===================JBID为D的日期"
-								 * +dutydateD+"为法定节假日"); dutydateD="error";
-								 * break; } } if(!"error".equals(dutydateD) &&
-								 * !"".equals(dutydateD)){//如果dutydateD有值，则就取这个
-								 * basebean
-								 * .writeLog("===================JBID为D的日期"
-								 * +dutydateD+"可去除"); break; } }
-								 * 
-								 * }else{ sqlD =
-								 * "select dutydate from hrqw_dutydata " +
-								 * " where pemn='"+pemn+"' and dutydate>'"+date+
-								 * "' and JBID='D' and defitem2='N'" +
-								 * " and (shiftid='7' or shiftid='8') and overtimehours=0 and jbhours=0"
-								 * + " order by dutydate"; rsD.executeSql(sqlD);
-								 * basebean
-								 * .writeLog("===================向后找D的sqlD: "+
-								 * sqlD);
-								 * 
-								 * if(rsD.getCounts()>0){//向后找D的结果集有值
-								 * basebean.writeLog
-								 * ("===================向后找D的结果集有值"); //
-								 * rsD.previous();//移动到上一条记录，重头开始遍历
-								 * while(rsD.next()){ dutydateD =
-								 * rsD.getString(1); String sql5 =
-								 * "select holidaydate from hrqw_fixholiday " +
-								 * " where substr(holidaydate,0,4)>=to_char(add_months(trunc(sysdate),-12),'yyyy')"
-								 * ; rs5.executeSql(sql5); basebean.writeLog(
-								 * "===================查询法定节假日的日期: "+ sql5);
-								 * while(rs5.next()){
-								 * if(dutydateD.equals(rs5.getString
-								 * (1))){//如果D的日期是法定节假日，则置为空
-								 * basebean.writeLog("===================JBID为D的日期"
-								 * +dutydateD+"为法定节假日"); dutydateD="error";
-								 * break; } } if(!"error".equals(dutydateD) &&
-								 * !"".equals(dutydateD)){//如果dutydateD有值，则就取这个
-								 * basebean
-								 * .writeLog("===================JBID为D的日期"
-								 * +dutydateD+"可去除"); break; } } }else{
-								 * dutydateD="error"; } }
-								 * 
-								 * //昨天的请假肯定不是一整天的
-								 * if(!dutydateD.equals("error")){ sql =
-								 * "update hrqw_dutydata set defitem5 ='"
-								 * +billno+"',JBID=null where pemn='"+pemn+
-								 * "' and dutydate='"+dutydateD+"' ";
-								 * rs.executeSql(sql); basebean.writeLog(
-								 * "===================8班别去D的sql: "+ sql); sql =
-								 * "update hrqw_dutydata set defitem5 ='"
-								 * +billno+
-								 * "',shiftid='6',JBID='D',overtimehours="
-								 * +(12-hourl)+",overtimeflag='X'" +
-								 * " where pemn='"
-								 * +pemn+"' and dutydate='"+addDate
-								 * (date,-1)+"' "; rs.executeSql(sql);
-								 * basebean.writeLog
-								 * ("===================8班改成D的加班处理sql: "+ sql);
-								 * }else{ if(sjlasthours+4-hourl>=0){//事假充足 sql
-								 * =
-								 * "update hrqw_dutydata set defitem5 ='"+billno
-								 * +"',shiftid='5',JBID='V',jbhours="+(hourl-4)+
-								 * " where pemn='"
-								 * +pemn+"' and dutydate='"+addDate
-								 * (date,-1)+"' "; rs.executeSql(sql);
-								 * basebean.writeLog
-								 * ("===================8班别前一天请事假的sql: "+ sql);
-								 * }else{ sql =
-								 * "update hrqw_dutydata set defitem5 ='"
-								 * +billno+
-								 * "',shiftid='5',JBID='W',jbhours="+(hourl
-								 * -4)+" where pemn='"
-								 * +pemn+"' and dutydate='"+addDate
-								 * (date,-1)+"' "; rs.executeSql(sql);
-								 * basebean.writeLog
-								 * ("===================8班别前一天请病假的sql: "+ sql);
-								 * } } } } }
-								 */
 								if (hours > 0) { // 今天的时长大于0
 
 									// TODO 请假当天是D的优先级最高
@@ -1037,14 +871,42 @@ public class IntoLeaveTimeAction extends BaseBean implements Action {
 
 												RecordSetDataSource rsD = new RecordSetDataSource(
 														"HR");
-												String sqlD = "select dutydate from hrqw_dutydata "
-														+ " where pemn='"
-														+ pemn
-														+ "' and dutydate<'"
-														+ date
-														+ "' and JBID='D' and defitem2='N'"
-														+ " and (shiftid='7' or shiftid='8') and overtimehours=0 and jbhours=0"
-														+ " order by dutydate desc";
+                                                String sqlD = "";
+                                                String previousMonth26day = getDatePreviousMonth26Day(date);//上个月26号
+                                                String thisMonth26Day = getDateThisMonth26Day(date);//本月26号
+                                                //1、日期在25号之前，找到上个月26号
+                                                if ((date.split("-")[2]).compareTo("26") < 0){
+                                                    sqlD = "select dutydate from hrqw_dutydata "
+                                                            + " where pemn='"
+                                                            + pemn
+                                                            + "' and dutydate<'"
+                                                            + date
+                                                            +" ' and dutydate>='"
+                                                            + previousMonth26day
+                                                            + "' and JBID='D' and defitem2='N'"
+                                                            + " and (shiftid='7' or shiftid='8') and overtimehours=0 and jbhours=0"
+                                                            + " order by dutydate desc";
+                                                }else {
+                                                    //2、日期在26号及之后，找到本月26号
+                                                    sqlD = "select dutydate from hrqw_dutydata "
+                                                            + " where pemn='"
+                                                            + pemn
+                                                            + "' and dutydate<'"
+                                                            + date
+                                                            +"' and dutydate>='"
+                                                            + thisMonth26Day
+                                                            + "' and JBID='D' and defitem2='N'"
+                                                            + " and (shiftid='7' or shiftid='8') and overtimehours=0 and jbhours=0"
+                                                            + " order by dutydate desc";
+                                                }
+//												sqlD = "select dutydate from hrqw_dutydata "
+//														+ " where pemn='"
+//														+ pemn
+//														+ "' and dutydate<'"
+//														+ date
+//														+ "' and JBID='D' and defitem2='N'"
+//														+ " and (shiftid='7' or shiftid='8') and overtimehours=0 and jbhours=0"
+//														+ " order by dutydate desc";
 												rsD.executeSql(sqlD);
 												basebean.writeLog("===================向前找D的sqlD: "
 														+ sqlD);
@@ -1082,14 +944,40 @@ public class IntoLeaveTimeAction extends BaseBean implements Action {
 													}
 
 												} else {
-													sqlD = "select dutydate from hrqw_dutydata "
-															+ " where pemn='"
-															+ pemn
-															+ "' and dutydate>'"
-															+ date
-															+ "' and JBID='D' and defitem2='N'"
-															+ " and (shiftid='7' or shiftid='8') and overtimehours=0 and jbhours=0"
-															+ " order by dutydate";
+                                                    String thisMonth25Day = getDateThisMonth25Day(date);
+                                                    String nextMonth25Day = getDateNextMonth25Day(date);
+                                                    //1、日期在25号及之前，找到本月25号
+                                                    if ((date.split("-")[2]).compareTo("26") < 0){
+                                                        sqlD = "select dutydate from hrqw_dutydata "
+                                                                + " where pemn='"
+                                                                + pemn
+                                                                + "' and dutydate>'"
+                                                                + date
+                                                                + "' and dutydate<='"
+                                                                + thisMonth25Day
+                                                                + "' and JBID='D' and defitem2='N'"
+                                                                + " and (shiftid='7' or shiftid='8') and overtimehours=0 and jbhours=0"
+                                                                + " order by dutydate";
+                                                    }else {
+                                                        sqlD = "select dutydate from hrqw_dutydata "
+                                                                + " where pemn='"
+                                                                + pemn
+                                                                + "' and dutydate>'"
+                                                                + date
+                                                                + "' and dutydate<='"
+                                                                + nextMonth25Day
+                                                                + "' and JBID='D' and defitem2='N'"
+                                                                + " and (shiftid='7' or shiftid='8') and overtimehours=0 and jbhours=0"
+                                                                + " order by dutydate";
+                                                    }
+//													sqlD = "select dutydate from hrqw_dutydata "
+//															+ " where pemn='"
+//															+ pemn
+//															+ "' and dutydate>'"
+//															+ date
+//															+ "' and JBID='D' and defitem2='N'"
+//															+ " and (shiftid='7' or shiftid='8') and overtimehours=0 and jbhours=0"
+//															+ " order by dutydate";
 													rsD.executeSql(sqlD);
 													basebean.writeLog("===================向后找D的sqlD: "
 															+ sqlD);
@@ -1412,14 +1300,42 @@ public class IntoLeaveTimeAction extends BaseBean implements Action {
 											} else { // 去D处理
 												RecordSetDataSource rsD = new RecordSetDataSource(
 														"HR");
-												String sqlD = "select dutydate from hrqw_dutydata "
-														+ " where pemn='"
-														+ pemn
-														+ "' and dutydate<'"
-														+ date
-														+ "' and JBID='D' and defitem2='N'"
-														+ " and (shiftid='7' or shiftid='8') and overtimehours=0 and jbhours=0"
-														+ " order by dutydate desc";
+                                                String sqlD = "";
+                                                String previousMonth26day = getDatePreviousMonth26Day(date);//上个月26号
+                                                String thisMonth26Day = getDateThisMonth26Day(date);//本月26号
+                                                //1、日期在25号之前，找到上个月26号
+                                                if ((date.split("-")[2]).compareTo("26") < 0){
+                                                    sqlD = "select dutydate from hrqw_dutydata "
+                                                            + " where pemn='"
+                                                            + pemn
+                                                            + "' and dutydate<'"
+                                                            + date
+                                                            +" ' and dutydate>='"
+                                                            + previousMonth26day
+                                                            + "' and JBID='D' and defitem2='N'"
+                                                            + " and (shiftid='7' or shiftid='8') and overtimehours=0 and jbhours=0"
+                                                            + " order by dutydate desc";
+                                                }else {
+                                                    //2、日期在26号及之后，找到本月26号
+                                                    sqlD = "select dutydate from hrqw_dutydata "
+                                                            + " where pemn='"
+                                                            + pemn
+                                                            + "' and dutydate<'"
+                                                            + date
+                                                            +"' and dutydate>='"
+                                                            + thisMonth26Day
+                                                            + "' and JBID='D' and defitem2='N'"
+                                                            + " and (shiftid='7' or shiftid='8') and overtimehours=0 and jbhours=0"
+                                                            + " order by dutydate desc";
+                                                }
+//												sqlD = "select dutydate from hrqw_dutydata "
+//														+ " where pemn='"
+//														+ pemn
+//														+ "' and dutydate<'"
+//														+ date
+//														+ "' and JBID='D' and defitem2='N'"
+//														+ " and (shiftid='7' or shiftid='8') and overtimehours=0 and jbhours=0"
+//														+ " order by dutydate desc";
 												rsD.executeSql(sqlD);
 												basebean.writeLog("===================向前找D的sqlD: "
 														+ sqlD);
@@ -1457,14 +1373,40 @@ public class IntoLeaveTimeAction extends BaseBean implements Action {
 													}
 
 												} else {
-													sqlD = "select dutydate from hrqw_dutydata "
-															+ " where pemn='"
-															+ pemn
-															+ "' and dutydate>'"
-															+ date
-															+ "' and JBID='D' and defitem2='N'"
-															+ " and (shiftid='7' or shiftid='8') and overtimehours=0 and jbhours=0"
-															+ " order by dutydate";
+                                                    String thisMonth25Day = getDateThisMonth25Day(date);
+                                                    String nextMonth25Day = getDateNextMonth25Day(date);
+                                                    //1、日期在25号及之前，找到本月25号
+                                                    if ((date.split("-")[2]).compareTo("26") < 0){
+                                                        sqlD = "select dutydate from hrqw_dutydata "
+                                                                + " where pemn='"
+                                                                + pemn
+                                                                + "' and dutydate>'"
+                                                                + date
+                                                                + "' and dutydate<='"
+                                                                + thisMonth25Day
+                                                                + "' and JBID='D' and defitem2='N'"
+                                                                + " and (shiftid='7' or shiftid='8') and overtimehours=0 and jbhours=0"
+                                                                + " order by dutydate";
+                                                    }else {
+                                                        sqlD = "select dutydate from hrqw_dutydata "
+                                                                + " where pemn='"
+                                                                + pemn
+                                                                + "' and dutydate>'"
+                                                                + date
+                                                                + "' and dutydate<='"
+                                                                + nextMonth25Day
+                                                                + "' and JBID='D' and defitem2='N'"
+                                                                + " and (shiftid='7' or shiftid='8') and overtimehours=0 and jbhours=0"
+                                                                + " order by dutydate";
+                                                    }
+//													sqlD = "select dutydate from hrqw_dutydata "
+//															+ " where pemn='"
+//															+ pemn
+//															+ "' and dutydate>'"
+//															+ date
+//															+ "' and JBID='D' and defitem2='N'"
+//															+ " and (shiftid='7' or shiftid='8') and overtimehours=0 and jbhours=0"
+//															+ " order by dutydate";
 													rsD.executeSql(sqlD);
 													basebean.writeLog("===================向后找D的sqlD: "
 															+ sqlD);
@@ -2407,4 +2349,50 @@ public class IntoLeaveTimeAction extends BaseBean implements Action {
 
 		return dutyHours;
 	}
+
+	//找到上个月26号的日期
+	public String getDatePreviousMonth26Day(String date){
+        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd");
+        Calendar c = Calendar.getInstance();
+        try {
+            Date date1 = format.parse(date);
+            c.setTime(date1);
+            c.add(Calendar.MONTH, -1);
+            date1 = c.getTime();
+            date = format.format(date1);
+            date = date.substring(0, date.length()-2)+"26";
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
+	    return date;
+    }
+
+    //找到本月26号的日期
+    public String getDateThisMonth26Day(String date){
+        date = date.substring(0, date.length()-2)+"26";
+        return date;
+    }
+
+    //找到下个月25号的日期
+    public String getDateNextMonth25Day(String date){
+        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd");
+        Calendar c = Calendar.getInstance();
+        try {
+            Date date1 = format.parse(date);
+            c.setTime(date1);
+            c.add(Calendar.MONTH, 1);
+            date1 = c.getTime();
+            date = format.format(date1);
+            date = date.substring(0, date.length()-2)+"25";
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
+        return date;
+    }
+
+    //找到本月25号的日期
+    public String getDateThisMonth25Day(String date){
+        date = date.substring(0, date.length()-2)+"25";
+        return date;
+    }
 }
